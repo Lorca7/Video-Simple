@@ -1,0 +1,35 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]   # arm64 = Apple Silicon, x64 = Intel
+    env:
+      npm_config_arch: ${{ matrix.arch }}   # makes ffmpeg-static fetch the matching ffmpeg binary
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check bundled ffmpeg architecture
+        run: file node_modules/ffmpeg-static/ffmpeg
+      - name: Test export pipeline
+        if: matrix.arch == 'arm64'
+        run: npm test
+      - run: npx electron-builder --mac dmg --${{ matrix.arch }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Video-Simple-mac-${{ matrix.arch }}
+          path: dist/*.dmg
+          if-no-files-found: error
